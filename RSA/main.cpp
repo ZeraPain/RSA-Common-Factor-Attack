@@ -1,6 +1,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <map>
 #include <Windows.h>
 
 #include "integer.h"
@@ -9,43 +10,62 @@
 #include "osrng.h"
 #include "files.h"
 
-struct PublicKeyData
+struct FileData
 {
 	CryptoPP::RSA::PublicKey	publicKey;
 	CryptoPP::Integer			gcd;
+	std::string					keyFileName;
 };
 
 struct PrivateKeyData
 {
 	CryptoPP::RSA::PrivateKey	privateKey;
-	size_t						fileIndex;
+	std::string					keyFileName;
 };
 
-std::vector<PublicKeyData> load_public_keys()
+std::map<std::string, std::string> files =
 {
-	std::vector<PublicKeyData> publicKeyDatas;
+	{ "1.bin", "1.pem" },
+	{ "2.bin", "2.pem" },
+	{ "3.bin", "3.pem" },
+	{ "4.bin", "4.pem" },
+	{ "5.bin", "5.pem" },
+	{ "6.bin", "6.pem" },
+	{ "7.bin", "7.pem" },
+	{ "8.bin", "8.pem" }
+};
 
-	for (auto i = 0; i < 8; ++i)
+const std::string publicKeyFolder = "public-keys\\";
+const std::string privateKeyFolder = "private-keys\\";
+const std::string encryptedMessageFolder = "messages\\";
+
+std::vector<FileData> load_public_keys()
+{
+	std::vector<FileData> publicKeyDatas;
+
+	for (auto& filePair : files)
 	{
 		try
 		{
-			std::string fileName = "public-keys\\" + std::to_string(i + 1) + ".pem";
-			CryptoPP::FileSource input(fileName.c_str(), true);
-
+			CryptoPP::FileSource input((publicKeyFolder + filePair.second).c_str(), true);
 			CryptoPP::RSA::PublicKey publicKey;
+
 			PEM_Load(input, publicKey);
 
-			publicKeyDatas.push_back({ publicKey, 1 });
+			FileData pkData = { publicKey, 1, filePair.second };
 
-			for (auto k = 0; k < i; ++k)
+			// check for common GCD with existing keys
+			for (auto& publicKeyData : publicKeyDatas)
 			{
-				const auto gcd = CryptoPP::Integer::Gcd(publicKeyDatas.at(i).publicKey.GetModulus(), publicKeyDatas.at(k).publicKey.GetModulus());
+				const auto gcd = CryptoPP::Integer::Gcd(pkData.publicKey.GetModulus(), publicKeyData.publicKey.GetModulus());
 				if (gcd != 1)
 				{
-					publicKeyDatas.at(i).gcd = gcd;
-					publicKeyDatas.at(k).gcd = gcd;
+					pkData.gcd = gcd;
+					publicKeyData.gcd = gcd;
 				}
 			}
+
+			publicKeyDatas.push_back(pkData);
 		}
 		catch (const CryptoPP::Exception& ex)
 		{
@@ -67,23 +87,23 @@ CryptoPP::Integer calculate_private_exponent(const CryptoPP::Integer& n, const C
 	return d;
 }
 
-std::vector<PrivateKeyData> calculate_private_keys(const std::vector<PublicKeyData>& publicKeyDatas)
+std::vector<PrivateKeyData> calculate_private_keys(const std::vector<FileData>& vFileData)
 {
 	std::vector<PrivateKeyData> privateKeys;
 
-	for (size_t i = 0; i < publicKeyDatas.size(); ++i)
+	for (auto& fileData : vFileData)
 	{
-		if (publicKeyDatas[i].gcd == 1)
+		if (fileData.gcd == 1)
 			continue;
 
-		const auto n = publicKeyDatas[i].publicKey.GetModulus();
-		const auto e = publicKeyDatas[i].publicKey.GetPublicExponent();
-		const auto d = calculate_private_exponent(n, e, publicKeyDatas[i].gcd);
+		const auto n = fileData.publicKey.GetModulus();
+		const auto e = fileData.publicKey.GetPublicExponent();
+		const auto d = calculate_private_exponent(n, e, fileData.gcd);
 
 		CryptoPP::InvertibleRSAFunction params;
 		params.Initialize(n, e, d);
 
-		privateKeys.push_back({CryptoPP::RSA::PrivateKey(params), (i + 1) });
+		privateKeys.push_back({ CryptoPP::RSA::PrivateKey(params), fileData.keyFileName });
 	}
 
 	return privateKeys;
@@ -91,20 +111,14 @@ std::vector<PrivateKeyData> calculate_private_keys(const std::vector<PublicKeyDa
 
 void save_private_keys(const std::vector<PrivateKeyData>& privateKeyDatas)
 {
-	CreateDirectory("private-keys", nullptr);
+	CreateDirectory(privateKeyFolder.c_str(), nullptr);
 
 	for (auto& privateKeyData : privateKeyDatas)
 	{
 		try
 		{
-			std::string privateKey_str;
-			CryptoPP::StringSink sink(privateKey_str);
-
-			PEM_Save(sink, privateKeyData.privateKey);
-
-			std::ofstream privateKey_file("private-keys\\" + std::to_string(privateKeyData.fileIndex) + ".pem");
-			privateKey_file << privateKey_str;
-			privateKey_file.close();
+			CryptoPP::FileSink fileSink((privateKeyFolder + privateKeyData.keyFileName).c_str(), true);
+			PEM_Save(fileSink, privateKeyData.privateKey);
 		}
 		catch (const CryptoPP::Exception& ex)
 		{
@@ -117,16 +131,14 @@ void decrypt_messages(const std::vector<PrivateKeyData>& privateKeyDatas)
 {
 	CryptoPP::AutoSeededRandomPool rng;
 
-	for (auto i = 0; i < 8; ++i)
+	for (auto& filePair : files)
 	{
-		std::string file = "messages\\" + std::to_string(i + 1) + ".bin";
-
 		std::string encrypted;
-		CryptoPP::FileSource input(file.c_str(), true, new CryptoPP::StringSink(encrypted));
+		CryptoPP::FileSource input((encryptedMessageFolder + filePair.first).c_str(), true, new CryptoPP::StringSink(encrypted));
 
 		for (auto& privateKeyData : privateKeyDatas)
 		{
-			if (privateKeyData.fileIndex == (i + 1))
+			if (0 == privateKeyData.keyFileName.compare(filePair.second))
 			{
 				CryptoPP::RSAES_PKCS1v15_Decryptor decryptor(privateKeyData.privateKey);
 
@@ -151,7 +163,7 @@ void decrypt_messages(const std::vector<PrivateKeyData>& privateKeyDatas)
 	}
 }
 
-int main(int argc, char* argv[])
+int main()
 {
 	auto publicKeyDatas = load_public_keys();
 	std::cout << "Loaded " << publicKeyDatas.size() << " public keys." << std::endl;
@@ -159,11 +171,13 @@ int main(int argc, char* argv[])
 	auto privateKeyDatas = calculate_private_keys(publicKeyDatas);
 	std::cout << "Found " << privateKeyDatas.size() << " private keys." << std::endl << std::endl;
 
-	save_private_keys(privateKeyDatas);
-
 	std::cout << "Decrypting messages.." << std::endl << std::endl;
 	decrypt_messages(privateKeyDatas);
-	
+
+	std::cout << "Saving private keys to : " << privateKeyFolder << std::endl;
+	save_private_keys(privateKeyDatas);
+
+	std::cout << "DONE!" << std::endl;
 
 	getchar();
 
