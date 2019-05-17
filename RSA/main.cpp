@@ -182,7 +182,7 @@ int main()
 
 		std::cout << "DONE! Press any key...";
 
-		getchar();
+		std::cin.get();
 	}
 	catch (CryptoPP::InvalidArgument& e)
 	{
