@@ -2,7 +2,12 @@
 #include <iostream>
 #include <fstream>
 #include <map>
-#include <Windows.h>
+#include <filesystem>
+#if __cplusplus < 201703L
+namespace fs = std::experimental::filesystem;
+#else
+namespace fs = std::filesystem;
+#endif
 
 #include "integer.h"
 #include "rsa.h"
@@ -112,7 +117,7 @@ std::map<std::string, CryptoPP::RSA::PrivateKey> generate_private_keys(const std
 
 void save_private_keys(const std::map<std::string, CryptoPP::RSA::PrivateKey>& privateKeyDatas)
 {
-	CreateDirectory(privateKeyFolder.c_str(), nullptr);
+	fs::create_directory(privateKeyFolder);
 
 	for (auto& privateKeyData : privateKeyDatas)
 	{
