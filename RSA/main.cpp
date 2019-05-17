@@ -166,21 +166,37 @@ void decrypt_messages(const std::map<std::string, CryptoPP::RSA::PrivateKey>& pr
 
 int main()
 {
-	auto publicKeyDatas = load_public_keys();
-	std::cout << "Loaded " << publicKeyDatas.size() << " public keys." << std::endl;
+	try
+	{
+		auto publicKeyDatas = load_public_keys();
+		std::cout << "Loaded " << publicKeyDatas.size() << " public keys." << std::endl;
 
-	auto privateKeyDatas = generate_private_keys(publicKeyDatas);
-	std::cout << "Found " << privateKeyDatas.size() << " private keys." << std::endl << std::endl;
+		auto privateKeyDatas = generate_private_keys(publicKeyDatas);
+		std::cout << "Found " << privateKeyDatas.size() << " private keys." << std::endl << std::endl;
 
-	std::cout << "Decrypting messages.." << std::endl << std::endl;
-	decrypt_messages(privateKeyDatas);
+		std::cout << "Decrypting messages.." << std::endl << std::endl;
+		decrypt_messages(privateKeyDatas);
 
-	std::cout << "Saving private keys to : " << privateKeyFolder << "..." << std::endl << std::endl;
-	save_private_keys(privateKeyDatas);
+		std::cout << "Saving private keys to : " << privateKeyFolder << "..." << std::endl << std::endl;
+		save_private_keys(privateKeyDatas);
 
-	std::cout << "DONE! Press any key...";
+		std::cout << "DONE! Press any key...";
 
-	getchar();
+		getchar();
+	}
+	catch (CryptoPP::InvalidArgument& e)
+	{
+		std::cerr << e.what() << std::endl;
+	}
+	catch (std::ios_base::failure& e)
+	{
+		std::cerr << e.what() << std::endl;
+	}
+	catch (std::runtime_error& e)
+	{
+		std::cerr << e.what() << std::endl;
+	}
+	
 
 	return 0;
 }

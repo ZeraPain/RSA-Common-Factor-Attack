@@ -262,3 +262,4 @@ __pycache__/
 /RSA/private-keys
 /thirdparty/cryptopp700
 *.sh
+/cov-int
