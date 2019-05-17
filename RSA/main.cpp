@@ -1,7 +1,13 @@
 #include <string>
 #include <iostream>
 #include <fstream>
-#include <Windows.h>
+#include <vector>
+#include <filesystem>
+#if __cplusplus < 201703L
+namespace fs = std::experimental::filesystem;
+#else
+namespace fs = std::filesystem;
+#endif
 
 #include "integer.h"
 #include "rsa.h"
@@ -91,7 +97,8 @@ std::vector<PrivateKeyData> calculate_private_keys(const std::vector<PublicKeyDa
 
 void save_private_keys(const std::vector<PrivateKeyData>& privateKeyDatas)
 {
-	CreateDirectory("private-keys", nullptr);
+	fs::create_directory("private-keys");
+	//CreateDirectory("private-keys", nullptr);
 
 	for (auto& privateKeyData : privateKeyDatas)
 	{
